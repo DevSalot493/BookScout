@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>BookScout</title>
+</head>
+<body>
+    <h1>📚 BookScout</h1>
+    <form method="post">
+        <label for="title">Enter a Book Title:</label>
+        <input type="text" id="title" name="title" required>
+        <button type="submit">Search</button>
+    </form>
+
+    {% if book %}
+        <hr>
+        <h2>Book Info:</h2>
+        <p><strong>Title:</strong> {{ book.title }}</p>
+        <p><strong>Author:</strong> {{ book.author }}</p>
+        <p><strong>Categories:</strong> {{ book.categories }}</p>
+        <p><strong>Rating:</strong> {{ book.rating }}</p>
+        <p><strong>Description:</strong> {{ book.clean_description }}</p>
+    {% elif request.method == 'POST' %}
+        <p>No results found. Please try another book.</p>
+    {% endif %}
+</body>
+</html>
