@@ -12,15 +12,14 @@
     </form>
 
     {% if book %}
-        <hr>
-        <h2>Book Info:</h2>
-        <p><strong>Title:</strong> {{ book.title }}</p>
-        <p><strong>Author:</strong> {{ book.author }}</p>
-        <p><strong>Categories:</strong> {{ book.categories }}</p>
-        <p><strong>Rating:</strong> {{ book.rating }}</p>
-        <p><strong>Description:</strong> {{ book.clean_description }}</p>
-    {% elif request.method == 'POST' %}
-        <p>No results found. Please try another book.</p>
-    {% endif %}
+    <h2>Book Info: {{ book.title }}</h2>
+    <p><strong>Author:</strong> {{ book.author }}</p>
+    <p><strong>Categories:</strong> {{ book.categories }}</p>
+    <p><strong>Rating:</strong> {{ book.rating }}</p>
+    <p><strong>Description:</strong> {{ book.clean_description }}</p>
+  {% else %}
+    <p>No book selected yet.</p>
+  {% endif %}
+  
 </body>
 </html>
