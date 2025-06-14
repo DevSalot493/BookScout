@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Recommendations for {{ title }}</title>
+</head>
+<body>
+    <h1>Books similar to "{{ title }}"</h1>
+    {% if recommendations %}
+        <ul>
+        {% for book in recommendations %}
+            <li>
+                <strong>{{ book.title }}</strong> by {{ book.author }}<br>
+                Category: {{ book.categories }}<br>
+                Rating: {{ book.rating }}<br>
+                Similarity Score: {{ "%.2f"|format(book.similarity) }}
+            </li>
+        {% endfor %}
+        </ul>
+    {% else %}
+        <p>No similar books found.</p>
+    {% endif %}
+    <br>
+    <a href="{{ url_for('index') }}">🔙 Search another book</a>
+</body>
+</html>

@@ -1,12 +1,12 @@
-from flask import Flask, render_template, request
+from flask import Flask, render_template, request, redirect, url_for
 import requests
 import os
 import csv
+import pandas as pd
 from bs4 import BeautifulSoup
 from dotenv import load_dotenv
-from wikipedia_fallback import get_wikipedia_plot
-import subprocess
-
+from preprocess_cache import preprocess_last_row
+from ml_engine import get_similar_books
 
 load_dotenv()
 API_KEY = os.getenv("GOOGLE_BOOKS_API_KEY")
@@ -17,8 +17,8 @@ CACHE_FILE = "cache/book_data.csv"
 # Ensure cache directory exists
 os.makedirs("cache", exist_ok=True)
 
-# Check if book exists in cache
 def get_cached_book(title):
+    """Return the cached row dict for `title`, or None."""
     if not os.path.exists(CACHE_FILE):
         return None
     with open(CACHE_FILE, "r", encoding="utf-8") as f:
@@ -30,24 +30,22 @@ def get_cached_book(title):
     print("❌ Book not found in cache")
     return None
 
-
-# Save book to cache
 def save_to_cache(book):
-    existing_titles = set()
-    
-    # Read existing titles
+    """
+    Append a new book dict to the CSV if its title isn't already present.
+    Expects keys: title, author, description, clean_description, categories, rating
+    """
+    existing = set()
     if os.path.exists(CACHE_FILE):
         with open(CACHE_FILE, "r", encoding="utf-8") as f:
             reader = csv.DictReader(f)
             for row in reader:
-                existing_titles.add(row["title"].lower())
+                existing.add(row["title"].lower())
 
-    # Skip saving if already present
-    if book["title"].lower() in existing_titles:
+    if book["title"].lower() in existing:
         print(f"⚠️ Duplicate not saved: {book['title']}")
         return
 
-    # Save if new
     file_exists = os.path.isfile(CACHE_FILE)
     with open(CACHE_FILE, "a", encoding="utf-8", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=book.keys())
@@ -56,51 +54,36 @@ def save_to_cache(book):
         writer.writerow(book)
         print(f"💾 Book cached: {book['title']}")
 
-
-# Clean description using BeautifulSoup
 def clean_description(text):
+    """Strip HTML tags from text."""
     if not text:
         return ""
-    soup = BeautifulSoup(text, "html.parser")
-    return soup.get_text().strip()
+    return BeautifulSoup(text, "html.parser").get_text().strip()
 
-# Fetch book from API + Wikipedia fallback
 def fetch_book_from_api(title):
-    params = {
-        "q": f"intitle:{title}",
-        "maxResults": 1
-    }
+    """
+    Fetch metadata from Google Books; fall back to Wikipedia if needed.
+    Returns a dict matching the CSV schema.
+    """
+    params = {"q": f"intitle:{title}", "maxResults": 1}
     if API_KEY:
         params["key"] = API_KEY
-    response = requests.get("https://www.googleapis.com/books/v1/volumes", params=params)
-    data = response.json()
+    data = requests.get("https://www.googleapis.com/books/v1/volumes", params=params).json()
 
     if "items" not in data:
         return None
 
-    book_info = data["items"][0]["volumeInfo"]
-    title = book_info.get("title", "")
-    authors = ", ".join(book_info.get("authors", []))
-    description = book_info.get("description", "")
-    categories = ", ".join(book_info.get("categories", []))
-    rating = book_info.get("averageRating", "N/A")
+    info = data["items"][0]["volumeInfo"]
+    book_title = info.get("title", "")
+    authors = ", ".join(info.get("authors", []))
+    raw_desc = info.get("description", "")
+    clean_desc = clean_description(raw_desc)
+    categories = ", ".join(info.get("categories", []))
+    rating = info.get("averageRating", "N/A")
 
-    raw_desc = description
-    clean_desc = clean_description(description)
-
-    # Wikipedia fallback if needed
-    if not clean_desc or len(clean_desc) < 30 or "no description" in clean_desc.lower():
-        print(f"🕵️ Google description too weak. Trying Wikipedia for '{title}'...")
-        wiki_plot = get_wikipedia_plot(title)
-        if wiki_plot:
-            clean_desc = clean_description(wiki_plot)
-
-    # Debug prints
-    print("\n🔍 Raw Desc:\n", raw_desc)
-    print("\n🧹 Clean Desc:\n", clean_desc)
-
+    # If Google description is weak, Wikipedia fallback happens in preprocess_last_row()
     book = {
-        "title": title,
+        "title": book_title,
         "author": authors,
         "description": raw_desc,
         "clean_description": clean_desc,
@@ -114,30 +97,39 @@ def fetch_book_from_api(title):
 @app.route("/", methods=["GET", "POST"])
 def index():
     book_data = None
+
     if request.method == "POST":
-        title = request.form["title"]
+        title = request.form["title"].strip()
         print(f"\n🔍 User searched for: {title}")
-        
+
+        # 1. Try cache first
         book_data = get_cached_book(title)
+
+        # 2. If miss, fetch from API and append to cache
         if not book_data:
             book_data = fetch_book_from_api(title)
             if book_data:
-                try:
-                    subprocess.run(["python", "preprocess_cache.py"], check=True)
-                    print("✅ Ran preprocess_cache.py after new book was added.")
-                except Exception as e:
-                    print(f"⚠️ Preprocessing failed: {e}")
+                # 3. Clean only the new row (with Wikipedia fallback if needed)
+                preprocess_last_row()
             else:
                 print("❌ No book found from API.")
-        
+
         if book_data:
             print(f"📘 Book returned to frontend: {book_data['title']}")
+            return redirect(url_for('recommend', title=book_data['title']))
         else:
             print("⚠️ No book returned.")
-    
-    return render_template("index.html", book=book_data)
 
+    return render_template("index.html")
 
+@app.route("/recommend")
+def recommend():
+    title = request.args.get("title")
+    if not title:
+        return redirect(url_for("index"))
+
+    recommendations = get_similar_books(title)
+    return render_template("results.html", title=title, recommendations=recommendations)
 
 if __name__ == "__main__":
     app.run(debug=True)
