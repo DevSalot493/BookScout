@@ -6,7 +6,10 @@ from scipy.sparse import hstack
 
 def load_and_vectorize(csv_path='cache/book_data.csv'):
     df = pd.read_csv(csv_path)
-    df.dropna(subset=['clean_description'], inplace=True)
+    
+    # Filter out empty or missing descriptions
+    df = df[df['clean_description'].notnull() & (df['clean_description'].str.strip() != "")]
+    df.reset_index(drop=True, inplace=True)
 
     # Clean and combine category data
     df['categories'] = df['categories'].fillna('')
@@ -34,13 +37,18 @@ def load_and_vectorize(csv_path='cache/book_data.csv'):
 def get_similar_books(title, top_n=5, csv_path='cache/book_data.csv'):
     df, combined_matrix = load_and_vectorize(csv_path)
 
-    # Case-insensitive match
+    # Case-insensitive match from the reindexed dataframe
     idx_match = df[df['title'].str.lower() == title.lower()]
     if idx_match.empty:
         print(f"❌ Title '{title}' not found in cache.")
         return []
 
-    idx = idx_match.index[0]
+    idx = idx_match.index[0]  # This is now safe due to reset_index
+
+    if idx >= combined_matrix.shape[0]:
+        print(f"❌ Index {idx} is out of bounds for similarity matrix of shape {combined_matrix.shape}.")
+        return []
+
     sims = cosine_similarity(combined_matrix[idx], combined_matrix).flatten()
 
     # Exclude self and get top-N

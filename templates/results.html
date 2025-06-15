@@ -11,7 +11,12 @@
             <li>
                 <strong>{{ book.title }}</strong> by {{ book.author }}<br>
                 Category: {{ book.categories }}<br>
-                Rating: {{ book.rating }}<br>
+                Rating:
+                {% if book.rating and book.rating|string|lower != 'nan' %}
+                    {{ "%.1f"|format(book.rating|float) }}
+                {% else %}
+                    Unrated
+                {% endif %}<br>
                 Similarity Score: {{ "%.2f"|format(book.similarity) }}
             </li>
         {% endfor %}
