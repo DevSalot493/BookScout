@@ -8,18 +8,32 @@
     <form method="post">
         <label for="title">Enter a Book Title:</label>
         <input type="text" id="title" name="title" required>
+
+        <br><br>
+
+        <label>Filter by Genre (optional):</label>
+        <fieldset>
+            {% for genre in candidate_genres %}
+                <label>
+                    <input type="checkbox" name="genres" value="{{ genre }}"
+                        {% if genre in selected_genres %}checked{% endif %}>
+                    {{ genre }}
+                </label><br>
+            {% endfor %}
+        </fieldset>
+
+        <br><br>
         <button type="submit">Search</button>
     </form>
 
     {% if book %}
-    <h2>Book Info: {{ book.title }}</h2>
-    <p><strong>Author:</strong> {{ book.author }}</p>
-    <p><strong>Categories:</strong> {{ book.categories }}</p>
-    <p><strong>Rating:</strong> {{ book.rating }}</p>
-    <p><strong>Description:</strong> {{ book.clean_description }}</p>
-  {% else %}
-    <p>No book selected yet.</p>
-  {% endif %}
-  
+        <h2>Book Info: {{ book.title }}</h2>
+        <p><strong>Author:</strong> {{ book.author }}</p>
+        <p><strong>Categories:</strong> {{ book.categories }}</p>
+        <p><strong>Rating:</strong> {{ book.rating }}</p>
+        <p><strong>Description:</strong> {{ book.clean_description }}</p>
+    {% else %}
+        <p>No book selected yet.</p>
+    {% endif %}
 </body>
 </html>

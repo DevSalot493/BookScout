@@ -5,6 +5,11 @@
 </head>
 <body>
     <h1>Books similar to "{{ title }}"</h1>
+
+    {% if genre_filter %}
+        <p><strong>Filtered by genres:</strong> {{ genre_filter | join(", ") }}</p>
+    {% endif %}
+
     {% if recommendations %}
         <ul>
         {% for book in recommendations %}
@@ -21,9 +26,12 @@
             </li>
         {% endfor %}
         </ul>
+    {% elif genre_filter %}
+        <p><strong>No similar books found in the selected genres.</strong></p>
     {% else %}
         <p>No similar books found.</p>
     {% endif %}
+
     <br>
     <a href="{{ url_for('index') }}">🔙 Search another book</a>
 </body>

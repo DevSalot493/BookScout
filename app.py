@@ -14,6 +14,15 @@ API_KEY = os.getenv("GOOGLE_BOOKS_API_KEY")
 app = Flask(__name__)
 CACHE_FILE = "cache/book_data.csv"
 
+# ✅ Genre list for checkbox filter
+CANDIDATE_GENRES = [
+    "Fantasy", "Science Fiction", "Horror", "Dystopian", "Adventure", "Classic",
+    "Young Adult", "Historical Fiction", "Romance", "Coming-of-age", "Satire",
+    "Thriller", "Mystery", "Philosophical Fiction", "Drama", "Self-help",
+    "Non-fiction", "Memoir", "Fiction", "Non-Fiction", "Biography",
+    "Literary Fiction", "Young-Adult Novel"
+]
+
 # Ensure cache directory exists
 os.makedirs("cache", exist_ok=True)
 
@@ -97,39 +106,61 @@ def fetch_book_from_api(title):
 @app.route("/", methods=["GET", "POST"])
 def index():
     book_data = None
+    # capture any checked genres
+    selected_genres = request.form.getlist("genres") if request.method == "POST" else []
 
     if request.method == "POST":
         title = request.form["title"].strip()
         print(f"\n🔍 User searched for: {title}")
 
-        # 1. Try cache first
         book_data = get_cached_book(title)
-
-        # 2. If miss, fetch from API and append to cache
         if not book_data:
             book_data = fetch_book_from_api(title)
             if book_data:
-                # 3. Clean only the new row (with Wikipedia fallback if needed)
                 preprocess_last_row()
-            else:
-                print("❌ No book found from API.")
 
         if book_data:
-            print(f"📘 Book returned to frontend: {book_data['title']}")
-            return redirect(url_for('recommend', title=book_data['title']))
-        else:
-            print("⚠️ No book returned.")
+            # pass checked genres along via query string
+            return redirect(
+                url_for('recommend',
+                        title=book_data['title'],
+                        genres=",".join(selected_genres))
+            )
 
-    return render_template("index.html")
+    # render index with genre checkboxes
+    return render_template(
+        "index.html",
+        candidate_genres=CANDIDATE_GENRES,
+        selected_genres=selected_genres
+    )
 
 @app.route("/recommend")
 def recommend():
     title = request.args.get("title")
+    # Reconstruct genre list from query string
+    genre_filter = (
+        [g for g in request.args.get("genres", "").split(",") if g]
+        if request.args.get("genres")
+        else []
+    )
+
     if not title:
         return redirect(url_for("index"))
 
-    recommendations = get_similar_books(title)
-    return render_template("results.html", title=title, recommendations=recommendations)
+    # Directly get top 5 *within* the chosen genres
+    recommendations = get_similar_books(
+        title,
+        filter_genres=genre_filter,
+        top_n=5
+    )
+
+    return render_template(
+        "results.html",
+        title=title,
+        recommendations=recommendations,
+        genre_filter=genre_filter
+    )
+
 
 if __name__ == "__main__":
     app.run(debug=True)
